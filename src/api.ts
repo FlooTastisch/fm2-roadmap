@@ -70,6 +70,11 @@ export const api = {
       body: JSON.stringify({ active }),
     }),
 
+  state: () =>
+    request<{ version: number; reveal: { active: boolean; until: number | null } }>(
+      "/api/state"
+    ),
+
   tasks: () => request<Task[]>("/api/tasks"),
   createTask: (data: Partial<Task>) =>
     request<Task>("/api/tasks", { method: "POST", body: JSON.stringify(data) }),

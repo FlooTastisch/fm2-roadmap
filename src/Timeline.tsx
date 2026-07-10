@@ -74,6 +74,8 @@ interface Props {
   isAdmin?: boolean;
   /** Admin hat die Verschleierung temporär für alle aufgehoben */
   revealed?: boolean;
+  /** Meldet, ob gerade ein Drag/Auswahl läuft (damit Live-Reloads warten) */
+  onInteractingChange?: (active: boolean) => void;
 }
 
 const LABEL_W = 150;
@@ -134,6 +136,7 @@ export function Timeline({
   readOnly = false,
   isAdmin = false,
   revealed = false,
+  onInteractingChange,
 }: Props) {
   const gridWidth = days.length * DAY_W;
   const today = todayISO();
@@ -182,6 +185,12 @@ export function Timeline({
       window.removeEventListener("blur", reset);
     };
   }, [canQuickDelete]);
+
+  // Laufende Interaktion (Drag/Auswahl) melden, damit Live-Reloads nicht
+  // mitten hineingrätschen.
+  useEffect(() => {
+    onInteractingChange?.(!!drag || !!createSelect);
+  }, [drag, createSelect, onInteractingChange]);
 
   // Beim ersten Rendern zur aktuellen Woche scrollen
   useEffect(() => {

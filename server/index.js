@@ -6,6 +6,7 @@ import { db } from "./db.js";
 import { hashPassword, verifyPassword, canWrite, isAdmin, ROLES } from "./auth.js";
 import { assertDatesInWindow, taskVisibleForUser } from "./dates.js";
 import { recordHistory, undoLast, historyCount } from "./history.js";
+import { getDataVersion } from "./state.js";
 import {
   DEFAULT_TASK_COLOR,
   TASK_COLORS,
@@ -367,6 +368,16 @@ function revealActive() {
 app.get("/api/reveal", (_req, res) => {
   const active = revealActive();
   res.json({ active, until: active ? revealUntil : null });
+});
+
+// Leichtgewichtiger Sammel-Endpunkt fürs Live-Polling: Daten-Version (für
+// Echtzeit-Updates) und aktueller Enthüllungs-Status in einer Anfrage.
+app.get("/api/state", (_req, res) => {
+  const active = revealActive();
+  res.json({
+    version: getDataVersion(),
+    reveal: { active, until: active ? revealUntil : null },
+  });
 });
 
 app.post("/api/reveal", requireAdmin, (req, res) => {

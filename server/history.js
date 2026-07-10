@@ -1,4 +1,5 @@
 import { db } from "./db.js";
+import { bumpDataVersion } from "./state.js";
 
 // Maximale Anzahl an Schritten, die rückgängig gemacht werden können
 export const HISTORY_LIMIT = 30;
@@ -23,6 +24,7 @@ export function recordHistory(entity, action, before, after) {
     after == null ? null : JSON.stringify(after)
   );
   trimStmt.run();
+  bumpDataVersion();
 }
 
 export function historyCount() {
@@ -95,5 +97,6 @@ export const undoLast = db.transaction(() => {
 
   db.prepare("DELETE FROM history WHERE id = ?").run(entry.id);
   const remaining = db.prepare("SELECT COUNT(*) AS c FROM history").get().c;
+  bumpDataVersion();
   return { undone: description, remaining };
 });

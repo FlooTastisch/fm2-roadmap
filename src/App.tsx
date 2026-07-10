@@ -60,6 +60,9 @@ export default function App() {
     until: null,
   });
   const revealActiveRef = useRef(false);
+  const versionRef = useRef(0);
+  const staleRef = useRef(false);
+  const interactingRef = useRef(false);
 
   const writable = user ? canWrite(user.role) : false;
   const isAdmin = user?.role === "admin";
@@ -134,35 +137,55 @@ export default function App() {
     if (user) reload();
   }, [user, reload]);
 
-  // Enthüllungs-Status regelmäßig abfragen: Hebt der Admin die Verschleierung auf
-  // (oder läuft sie serverseitig nach 10 Minuten ab), sehen alle offenen Clients
-  // die Änderung nach wenigen Sekunden. Nicht-Admins laden die Aufgaben dann neu,
-  // weil der Server sie je nach Status anonymisiert oder vollständig liefert.
+  // Live-Updates: In kurzen Abständen den Sammel-Endpunkt abfragen. Ändert ein
+  // anderer Client Zeilen/Aufgaben, steigt die Daten-Version – dann laden alle
+  // offenen Clients neu. Ebenso wird der Enthüllungs-Status verteilt (Admin hebt
+  // Verschleierung auf / sie läuft nach 10 Minuten ab). Läuft gerade ein Drag
+  // oder eine Auswahl, wird das Neuladen bis zum Ende der Interaktion aufgeschoben.
+  const handleInteractingChange = useCallback(
+    (active: boolean) => {
+      interactingRef.current = active;
+      if (!active && staleRef.current) {
+        staleRef.current = false;
+        reload();
+      }
+    },
+    [reload]
+  );
+
   useEffect(() => {
     if (!user) return;
     let stopped = false;
     const check = async () => {
       try {
-        const r = await api.reveal();
+        const s = await api.state();
         if (stopped) return;
-        const changed = r.active !== revealActiveRef.current;
-        revealActiveRef.current = r.active;
-        setReveal(r);
-        if (changed && user.role !== "admin") {
-          const t = await api.tasks();
-          if (!stopped) setTasks(t);
+        const revealChanged = s.reveal.active !== revealActiveRef.current;
+        revealActiveRef.current = s.reveal.active;
+        setReveal(s.reveal);
+
+        const firstRun = versionRef.current === 0;
+        const versionChanged = s.version !== versionRef.current;
+        versionRef.current = s.version;
+
+        // Erste Runde nur initialisieren – die Daten wurden bereits geladen.
+        if (firstRun) return;
+
+        if (versionChanged || revealChanged) {
+          if (interactingRef.current) staleRef.current = true;
+          else reload();
         }
       } catch {
         /* ignorieren – nächster Versuch beim folgenden Intervall */
       }
     };
     check();
-    const id = window.setInterval(check, 3000);
+    const id = window.setInterval(check, 2000);
     return () => {
       stopped = true;
       window.clearInterval(id);
     };
-  }, [user]);
+  }, [user, reload]);
 
   const toggleReveal = useCallback(async () => {
     try {
@@ -482,6 +505,7 @@ export default function App() {
         readOnly={!writable}
         isAdmin={isAdmin}
         revealed={reveal.active}
+        onInteractingChange={handleInteractingChange}
         onTaskClick={(task) => setModal({ type: "task-edit", task })}
         onTaskChange={handleTaskChange}
         onCreateRange={(laneId, start_date, end_date, rowIndex, rowSpan) => {
