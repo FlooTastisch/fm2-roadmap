@@ -9,7 +9,7 @@ import {
   diffDays,
   isoWeek,
   todayISO,
-  visibleWindow,
+  visibleRange,
 } from "./dates";
 import { mcHeadUrl } from "./mcHead";
 
@@ -138,7 +138,7 @@ export function Timeline({
   const gridWidth = days.length * DAY_W;
   const today = todayISO();
   const todayIdx = diffDays(rangeStart, today);
-  const { min: visibleMin, max: visibleMax } = visibleWindow(today);
+  const { min: visibleMin, max: visibleMax } = visibleRange(today);
   const visibleMinIdx = Math.max(0, diffDays(rangeStart, visibleMin));
   const visibleMaxIdx = Math.min(days.length - 1, diffDays(rangeStart, visibleMax));
   // Der Blur-Schleier ist reine Kontrollanzeige für den Admin (zeigt an, ob die

@@ -6,7 +6,7 @@ import { Timeline } from "./Timeline";
 import { TaskModal } from "./TaskModal";
 import { LaneModal } from "./LaneModal";
 import { UsersModal } from "./UsersModal";
-import { addDays, buildDays, diffDays, startOfWeek, todayISO, visibleWindow } from "./dates";
+import { addDays, buildDays, diffDays, startOfWeek, todayISO, visibleRange } from "./dates";
 
 const WEEKS_BEFORE = 4;
 const WEEKS_TOTAL = 30;
@@ -100,17 +100,14 @@ export default function App() {
 
   const rangeStart = useMemo(() => {
     const today = todayISO();
-    if (clampToWindow) return startOfWeek(visibleWindow(today).min);
+    if (clampToWindow) return visibleRange(today).min;
     return addDays(startOfWeek(today), (rangeOffset - WEEKS_BEFORE) * 7);
   }, [clampToWindow, rangeOffset]);
 
   const dayCount = useMemo(() => {
     if (!clampToWindow) return WEEKS_TOTAL * 7;
-    const { min, max } = visibleWindow(todayISO());
-    // volle Wochen: Montag der Startwoche bis Sonntag der Endwoche
-    const start = startOfWeek(min);
-    const end = addDays(startOfWeek(max), 6);
-    return diffDays(start, end) + 1;
+    const { min, max } = visibleRange(todayISO());
+    return diffDays(min, max) + 1;
   }, [clampToWindow]);
 
   const days = useMemo(() => buildDays(rangeStart, dayCount), [rangeStart, dayCount]);

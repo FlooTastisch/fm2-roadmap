@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { db } from "./db.js";
 import { hashPassword, verifyPassword, canWrite, isAdmin, ROLES } from "./auth.js";
-import { assertDatesInWindow, taskFullyVisible } from "./dates.js";
+import { assertDatesInWindow, taskVisibleForUser } from "./dates.js";
 import { recordHistory, undoLast, historyCount } from "./history.js";
 import {
   DEFAULT_TASK_COLOR,
@@ -412,9 +412,10 @@ function checkPlacement({ laneId, rowIndex, rowSpan, start, end, excludeTaskId =
 
 function presentTasksForSession(tasks, session) {
   if (isAdmin(session.role) || revealActive()) return tasks;
-  // Nicht-Admins ohne aktive Enthüllung erhalten nur Aufgaben, die vollständig
-  // im Sichtfenster liegen. Alles außerhalb verlässt den Server gar nicht.
-  return tasks.filter((t) => taskFullyVisible(t));
+  // Nicht-Admins ohne aktive Enthüllung erhalten alle Aufgaben, die den
+  // sichtbaren Bereich überlappen (am Rand schneidet das Frontend sie ab).
+  // Aufgaben komplett außerhalb verlassen den Server gar nicht.
+  return tasks.filter((t) => taskVisibleForUser(t));
 }
 
 function requireTaskAccess(task, session, res) {
@@ -422,7 +423,7 @@ function requireTaskAccess(task, session, res) {
     res.status(404).json({ error: "Nicht gefunden" });
     return false;
   }
-  if (!isAdmin(session.role) && !taskFullyVisible(task)) {
+  if (!isAdmin(session.role) && !taskVisibleForUser(task)) {
     // Kein Hinweis, dass die Aufgabe existiert
     res.status(404).json({ error: "Nicht gefunden" });
     return false;

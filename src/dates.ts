@@ -36,8 +36,17 @@ export function visibleWindow(today = todayISO()) {
   };
 }
 
-export function isInVisibleWindow(iso: string, today = todayISO()) {
+/**
+ * Sichtbarer Bereich für Nicht-Admins, auf volle Wochen (Mo–So) gerundet –
+ * muss mit `visibleRange` auf dem Server übereinstimmen.
+ */
+export function visibleRange(today = todayISO()) {
   const { min, max } = visibleWindow(today);
+  return { min: startOfWeek(min), max: addDays(startOfWeek(max), 6) };
+}
+
+export function isInVisibleWindow(iso: string, today = todayISO()) {
+  const { min, max } = visibleRange(today);
   return iso >= min && iso <= max;
 }
 
@@ -54,7 +63,7 @@ export function rangeIncludesWeekend(startISO: string, endISO: string): boolean 
 }
 
 export function clampDateRange(start: string, end: string, today = todayISO()) {
-  const { min, max } = visibleWindow(today);
+  const { min, max } = visibleRange(today);
   let s = start;
   let e = end;
   if (s < min) {
