@@ -6,7 +6,7 @@ import { Timeline } from "./Timeline";
 import { TaskModal } from "./TaskModal";
 import { LaneModal } from "./LaneModal";
 import { UsersModal } from "./UsersModal";
-import { addDays, buildDays, startOfWeek, todayISO } from "./dates";
+import { addDays, buildDays, diffDays, startOfWeek, todayISO, visibleWindow } from "./dates";
 
 const WEEKS_BEFORE = 4;
 const WEEKS_TOTAL = 30;
@@ -93,11 +93,27 @@ export default function App() {
     window.setTimeout(() => setToast(""), 4000);
   }, []);
 
-  const rangeStart = useMemo(
-    () => addDays(startOfWeek(todayISO()), (rangeOffset - WEEKS_BEFORE) * 7),
-    [rangeOffset]
-  );
-  const days = useMemo(() => buildDays(rangeStart, WEEKS_TOTAL * 7), [rangeStart]);
+  // Nicht-Admins ohne aktive Enthüllung sehen ausschließlich ihr Sichtfenster
+  // und können nicht darüber hinaus scrollen. Admins – und während einer
+  // Enthüllung alle – sehen das volle Raster mit Navigation.
+  const clampToWindow = !isAdmin && !reveal.active;
+
+  const rangeStart = useMemo(() => {
+    const today = todayISO();
+    if (clampToWindow) return startOfWeek(visibleWindow(today).min);
+    return addDays(startOfWeek(today), (rangeOffset - WEEKS_BEFORE) * 7);
+  }, [clampToWindow, rangeOffset]);
+
+  const dayCount = useMemo(() => {
+    if (!clampToWindow) return WEEKS_TOTAL * 7;
+    const { min, max } = visibleWindow(todayISO());
+    // volle Wochen: Montag der Startwoche bis Sonntag der Endwoche
+    const start = startOfWeek(min);
+    const end = addDays(startOfWeek(max), 6);
+    return diffDays(start, end) + 1;
+  }, [clampToWindow]);
+
+  const days = useMemo(() => buildDays(rangeStart, dayCount), [rangeStart, dayCount]);
 
   const reload = useCallback(async () => {
     const [l, t] = await Promise.all([api.lanes(), api.tasks()]);
@@ -391,10 +407,14 @@ export default function App() {
           </span>
         </div>
         <div className="topbar-actions">
-          <button onClick={() => setRangeOffset((o) => o - 4)}>← Früher</button>
-          <button onClick={() => setRangeOffset(0)}>Heute</button>
-          <button onClick={() => setRangeOffset((o) => o + 4)}>Später →</button>
-          <span className="divider" />
+          {!clampToWindow && (
+            <>
+              <button onClick={() => setRangeOffset((o) => o - 4)}>← Früher</button>
+              <button onClick={() => setRangeOffset(0)}>Heute</button>
+              <button onClick={() => setRangeOffset((o) => o + 4)}>Später →</button>
+              <span className="divider" />
+            </>
+          )}
           {isAdmin && hiddenLaneCount > 0 && (
             <button
               onClick={() => setShowHidden((v) => !v)}

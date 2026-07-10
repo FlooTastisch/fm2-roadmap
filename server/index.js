@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { db } from "./db.js";
 import { hashPassword, verifyPassword, canWrite, isAdmin, ROLES } from "./auth.js";
-import { assertDatesInWindow, taskFullyVisible, visibleWindow } from "./dates.js";
+import { assertDatesInWindow, taskFullyVisible } from "./dates.js";
 import { recordHistory, undoLast, historyCount } from "./history.js";
 import {
   DEFAULT_TASK_COLOR,
@@ -384,27 +384,6 @@ function validDates(start, end) {
 }
 
 
-// Aufgaben außerhalb des Sichtfensters werden anonymisiert übertragen:
-// Zeitraum, Farbe und Zeile bleiben (damit die Balken hinter dem Blur sichtbar sind),
-// aber Titel/Notizen/Status verlassen den Server nie.
-function presentTaskForUser(task, role) {
-  if (isAdmin(role) || taskFullyVisible(task)) return task;
-  return {
-    id: task.id,
-    lane_id: task.lane_id,
-    start_date: task.start_date,
-    end_date: task.end_date,
-    color: task.color,
-    row_index: task.row_index,
-    row_span: task.row_span,
-    title: "",
-    notes: "",
-    done: 0,
-    fixed: 1,
-    redacted: true,
-  };
-}
-
 // Prüft Unterzeilen-Position und Kollisionen mit anderen Aufgaben derselben Zeile.
 // Gibt bei Fehler eine Meldung zurück, sonst null.
 function checkPlacement({ laneId, rowIndex, rowSpan, start, end, excludeTaskId = null }) {
@@ -433,7 +412,9 @@ function checkPlacement({ laneId, rowIndex, rowSpan, start, end, excludeTaskId =
 
 function presentTasksForSession(tasks, session) {
   if (isAdmin(session.role) || revealActive()) return tasks;
-  return tasks.map((t) => presentTaskForUser(t, session.role));
+  // Nicht-Admins ohne aktive Enthüllung erhalten nur Aufgaben, die vollständig
+  // im Sichtfenster liegen. Alles außerhalb verlässt den Server gar nicht.
+  return tasks.filter((t) => taskFullyVisible(t));
 }
 
 function requireTaskAccess(task, session, res) {

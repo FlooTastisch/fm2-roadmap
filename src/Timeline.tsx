@@ -141,12 +141,13 @@ export function Timeline({
   const { min: visibleMin, max: visibleMax } = visibleWindow(today);
   const visibleMinIdx = Math.max(0, diffDays(rangeStart, visibleMin));
   const visibleMaxIdx = Math.min(days.length - 1, diffDays(rangeStart, visibleMax));
-  // Der Blur-Schleier wird auch dem Admin angezeigt (als Kontrollinstanz, ob die
-  // Verschleierung gerade aktiv ist) – nur die Enthüllung entfernt ihn für alle.
-  // Beim Admin ist er rein optisch: Klicks und Drag gehen hindurch.
-  // Bearbeitungsgrenzen gelten für Nicht-Admins auch während der Enthüllung
-  // (der Server lehnt Änderungen außerhalb des Fensters ohnehin ab).
-  const restrictVisibility = !revealed;
+  // Der Blur-Schleier ist reine Kontrollanzeige für den Admin (zeigt an, ob die
+  // Verschleierung gerade aktiv ist); Klicks und Drag gehen bei ihm hindurch.
+  // Nicht-Admins bekommen keinen Blur mehr – ihr Raster ist stattdessen in App
+  // fest auf das Sichtfenster beschränkt, sodass es außerhalb nichts zu zeigen gibt.
+  // Bearbeitungsgrenzen gelten für Nicht-Admins weiterhin (der Server lehnt
+  // Änderungen außerhalb des Fensters ohnehin ab).
+  const restrictVisibility = isAdmin && !revealed;
   const restrictEditing = !isAdmin;
   const scrollRef = useRef<HTMLDivElement>(null);
   const laneRowRefs = useRef(new Map<number, HTMLDivElement>());
