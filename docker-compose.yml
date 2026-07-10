@@ -1,0 +1,30 @@
+services:
+  roadmap:
+    build: .
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      ROADMAP_ADMIN_USER: "${ROADMAP_ADMIN_USER:-admin}"
+      ROADMAP_ADMIN_PASSWORD: "${ROADMAP_ADMIN_PASSWORD:?ROADMAP_ADMIN_PASSWORD muss gesetzt sein}"
+    volumes:
+      - ./data:/app/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      ROADMAP_DOMAIN: "${ROADMAP_DOMAIN:?ROADMAP_DOMAIN muss gesetzt sein (z. B. roadmap.example.com)}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - roadmap
+
+volumes:
+  caddy_data:
+  caddy_config:
