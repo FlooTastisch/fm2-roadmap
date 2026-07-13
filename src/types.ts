@@ -18,23 +18,36 @@ export interface OnlineUser {
   role: Role;
 }
 
-/** Raster-basierte Cursor-Position: Datum + Anteil im Tag, Zeile + Anteil in der Zeile */
+/** Raster-basierte Cursor-Position: Datum + absolute Y-Position im Timeline-Inhalt.
+ *  Y in Pixeln ab Oberkante von .tl-inner – funktioniert auch über Trennlinien
+ *  und unterhalb der letzten Zeile, ohne an einzelne Lane-Zellen gebunden zu sein. */
 export interface CursorPos {
   /** Tag (ISO), über dem der Zeiger steht */
   d: string;
   /** Anteil innerhalb des Tages (0..1) */
   df: number;
-  /** Lane-ID */
-  lane: number;
-  /** Anteil innerhalb der Zeilenhöhe (0..1) */
-  lf: number;
+  /** Y-Position in Pixeln ab Oberkante des Timeline-Inhalts */
+  y: number;
 }
+
+/** Was ein anderer Benutzer gerade anklickt / bearbeitet (sichtbar solange Modal offen) */
+export type CursorFocus =
+  | { kind: "task"; taskId: number }
+  | {
+      kind: "range";
+      lane: number;
+      start: string;
+      end: string;
+      rowIndex: number;
+      rowSpan: number;
+    };
 
 /** Live-Cursor eines anderen Benutzers */
 export interface RemoteCursor extends CursorPos {
   id: number;
   username: string;
   role: Role;
+  focus?: CursorFocus | null;
 }
 
 export interface Lane {

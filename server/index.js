@@ -16,6 +16,7 @@ import {
 
 const PORT = process.env.PORT || 3000;
 const SESSION_COOKIE = "roadmap_session";
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // token -> userId. Benutzername und Rolle werden bewusst NICHT in der Session
 // gecacht, sondern pro Anfrage frisch aus der Datenbank gelesen – so greifen
@@ -428,33 +429,62 @@ function onlineUsers() {
 // basiert – nur so stimmen sie bei unterschiedlichen Scroll-Positionen und
 // Fenstergrößen. Kein Persistieren nötig: reiner Live-Zustand im Speicher.
 const CURSOR_TTL_MS = 5 * 1000;
-// userId -> { username, role, pos, ts }
+// userId -> { username, role, pos, focus, ts }
 const cursors = new Map();
 
 function normalizeCursorPos(raw) {
   if (!raw || typeof raw !== "object") return null;
   const d = String(raw.d ?? "");
   const df = Number(raw.df);
-  const lane = Number(raw.lane);
-  const lf = Number(raw.lf);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
-  if (!Number.isFinite(df) || !Number.isFinite(lf) || !Number.isInteger(lane)) return null;
+  const y = Number(raw.y);
+  if (!DATE_RE.test(d)) return null;
+  if (!Number.isFinite(df) || !Number.isFinite(y) || y < 0) return null;
   return {
     d,
     df: Math.max(0, Math.min(1, df)),
-    lane,
-    lf: Math.max(0, Math.min(1, lf)),
+    y,
   };
 }
 
-// Meldet die eigene Position (oder null = Zeiger nicht über dem Raster) und
-// liefert im selben Rutsch die frischen Positionen aller anderen zurück.
+function normalizeCursorFocus(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.kind === "task") {
+    const taskId = Number(raw.taskId);
+    if (!Number.isInteger(taskId) || taskId <= 0) return null;
+    return { kind: "task", taskId };
+  }
+  if (raw.kind === "range") {
+    const lane = Number(raw.lane);
+    const start = String(raw.start ?? "");
+    const end = String(raw.end ?? "");
+    const rowIndex = Number(raw.rowIndex ?? 0);
+    const rowSpan = Number(raw.rowSpan ?? 1);
+    if (!Number.isInteger(lane) || lane <= 0) return null;
+    if (!DATE_RE.test(start) || !DATE_RE.test(end)) return null;
+    if (!Number.isInteger(rowIndex) || rowIndex < 0) return null;
+    if (!Number.isInteger(rowSpan) || rowSpan < 1) return null;
+    return { kind: "range", lane, start, end, rowIndex, rowSpan };
+  }
+  return null;
+}
+
+// Meldet die eigene Position und optional den Fokus (geöffnetes Modal) und
+// liefert im selben Rutsch die frischen Cursor der anderen zurück.
 app.post("/api/cursors", (req, res) => {
   const session = getSession(req);
   const pos = normalizeCursorPos(req.body?.pos);
+  const focus = normalizeCursorFocus(req.body?.focus);
   const now = Date.now();
-  if (pos) {
-    cursors.set(session.userId, { username: session.username, role: session.role, pos, ts: now });
+  const prev = cursors.get(session.userId);
+  const effectivePos = pos ?? (focus ? prev?.pos ?? null : null);
+  if (effectivePos) {
+    cursors.set(session.userId, {
+      username: session.username,
+      role: session.role,
+      pos: effectivePos,
+      focus,
+      ts: now,
+    });
   } else {
     cursors.delete(session.userId);
   }
@@ -465,7 +495,13 @@ app.post("/api/cursors", (req, res) => {
       continue;
     }
     if (userId === session.userId) continue;
-    list.push({ id: userId, username: entry.username, role: entry.role, ...entry.pos });
+    list.push({
+      id: userId,
+      username: entry.username,
+      role: entry.role,
+      ...entry.pos,
+      focus: entry.focus ?? null,
+    });
   }
   res.json({ cursors: list });
 });
@@ -495,8 +531,6 @@ app.post("/api/reveal", requireAdmin, (req, res) => {
 });
 
 // ---------- Tasks ----------
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function validDates(start, end) {
   return DATE_RE.test(start) && DATE_RE.test(end) && start <= end;

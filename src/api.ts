@@ -1,4 +1,4 @@
-import type { CursorPos, Lane, OnlineUser, RemoteCursor, Role, Task, User } from "./types";
+import type { CursorFocus, CursorPos, Lane, OnlineUser, RemoteCursor, Role, Task, User } from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -81,10 +81,10 @@ export const api = {
 
   /** Eigene Cursor-Position melden (null = Zeiger nicht über dem Raster)
    *  und die frischen Positionen der anderen abholen */
-  cursors: (pos: CursorPos | null) =>
+  cursors: (pos: CursorPos | null, focus?: CursorFocus | null) =>
     request<{ cursors: RemoteCursor[] }>("/api/cursors", {
       method: "POST",
-      body: JSON.stringify({ pos }),
+      body: JSON.stringify({ pos, focus: focus ?? null }),
     }),
 
   tasks: () => request<Task[]>("/api/tasks"),

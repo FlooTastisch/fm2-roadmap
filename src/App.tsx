@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { Lane, OnlineUser, Task, User } from "./types";
+import type { CursorFocus, Lane, OnlineUser, Task, User } from "./types";
 import { canSeeAll, canWrite, roleLabel } from "./types";
 import { Presence } from "./Presence";
 import { Timeline } from "./Timeline";
@@ -83,6 +83,22 @@ export default function App() {
     }
     return set;
   }, [online, cursorOverrides, user]);
+
+  // Solange ein Aufgaben-Modal offen ist, an andere melden, was gerade bearbeitet wird
+  const cursorFocus = useMemo((): CursorFocus | null => {
+    if (modal.type === "task-edit") return { kind: "task", taskId: modal.task.id };
+    if (modal.type === "task-new") {
+      return {
+        kind: "range",
+        lane: modal.laneId,
+        start: modal.start_date,
+        end: modal.end_date,
+        rowIndex: modal.rowIndex,
+        rowSpan: modal.rowSpan,
+      };
+    }
+    return null;
+  }, [modal]);
 
   const toggleCursorWatch = useCallback(
     (id: number) => {
@@ -563,6 +579,7 @@ export default function App() {
         fullView={fullView}
         revealed={reveal.active}
         watchedCursorIds={watchedCursorIds}
+        cursorFocus={cursorFocus}
         onInteractingChange={handleInteractingChange}
         onTaskClick={(task) => setModal({ type: "task-edit", task })}
         onTaskChange={handleTaskChange}

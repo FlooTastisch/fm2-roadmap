@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import type { Lane, Task } from "./types";
+import type { CursorFocus, Lane, Task } from "./types";
 import {
   DayInfo,
   MONTHS,
@@ -13,24 +13,9 @@ import {
 } from "./dates";
 import { mcHeadUrl } from "./mcHead";
 import { CursorLayer } from "./CursorLayer";
+import { BAR_INSET, DAY_W, laneMetrics, laneRowHeight } from "./timelineMetrics";
 
-export const DAY_W = 26;
-const LANE_PAD = 3;
-/** Horizontaler Innenabstand der Aufgaben-Balken (links + rechts, symmetrisch) */
-const BAR_INSET = 2;
-
-/** Maße für normale und kompakte Unterzeilen (ca. 25 % niedriger) */
-function laneMetrics(compact: boolean) {
-  if (compact) {
-    return { barH: 14, barGap: 2, lanePad: 2, subH: 16, fontSize: 10 };
-  }
-  return { barH: 18, barGap: 3, lanePad: LANE_PAD, subH: 21, fontSize: 11 };
-}
-
-function laneRowHeight(subRows: number, compact: boolean) {
-  const m = laneMetrics(compact);
-  return m.lanePad * 2 + subRows * m.barH + (subRows - 1) * m.barGap;
-}
+export { DAY_W } from "./timelineMetrics";
 
 interface CreateSelectState {
   laneId: number;
@@ -81,6 +66,8 @@ interface Props {
   onInteractingChange?: (active: boolean) => void;
   /** Benutzer, deren Live-Cursor angezeigt werden (Auswahl über die Presence-Leiste) */
   watchedCursorIds: Set<number>;
+  /** Eigener Fokus (geöffnetes Modal) für andere sichtbar machen */
+  cursorFocus: CursorFocus | null;
 }
 
 const LABEL_W = 150;
@@ -144,6 +131,7 @@ export function Timeline({
   revealed = false,
   onInteractingChange,
   watchedCursorIds,
+  cursorFocus,
 }: Props) {
   const gridWidth = days.length * DAY_W;
   const today = todayISO();
@@ -161,6 +149,7 @@ export function Timeline({
   const restrictVisibility = fullView && !revealed;
   const restrictEditing = !isAdmin;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const laneRowRefs = useRef(new Map<number, HTMLDivElement>());
 
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -487,7 +476,7 @@ export function Timeline({
       ref={scrollRef}
       onMouseMove={(e) => canQuickDelete && setDeleteModifier(isDeleteModifier(e))}
     >
-      <div className="tl-inner" style={{ width: gridWidth + LABEL_W }}>
+      <div className="tl-inner" ref={innerRef} style={{ width: gridWidth + LABEL_W }}>
         {/* Kopfzeilen */}
         <div className="tl-row tl-head-row" style={{ top: 0 }}>
           <div className="tl-label tl-corner" />
@@ -742,11 +731,14 @@ export function Timeline({
         <CursorLayer
           days={days}
           rangeStart={rangeStart}
-          dayW={DAY_W}
           labelW={LABEL_W}
+          lanes={lanes}
+          tasks={tasks}
           containerRef={scrollRef}
+          innerRef={innerRef}
           laneRowRefs={laneRowRefs}
           watchedIds={watchedCursorIds}
+          focus={cursorFocus}
         />
       </div>
       {hover && !drag && (
