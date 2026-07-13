@@ -12,6 +12,7 @@ import {
   visibleRange,
 } from "./dates";
 import { mcHeadUrl } from "./mcHead";
+import { CursorLayer } from "./CursorLayer";
 
 export const DAY_W = 26;
 const LANE_PAD = 3;
@@ -72,10 +73,14 @@ interface Props {
   onTaskDelete?: (task: Task) => void;
   readOnly?: boolean;
   isAdmin?: boolean;
+  /** Sieht das komplette Raster (Admin & Beobachter) */
+  fullView?: boolean;
   /** Admin hat die Verschleierung temporär für alle aufgehoben */
   revealed?: boolean;
   /** Meldet, ob gerade ein Drag/Auswahl läuft (damit Live-Reloads warten) */
   onInteractingChange?: (active: boolean) => void;
+  /** Benutzer, deren Live-Cursor angezeigt werden (Auswahl über die Presence-Leiste) */
+  watchedCursorIds: Set<number>;
 }
 
 const LABEL_W = 150;
@@ -135,8 +140,10 @@ export function Timeline({
   onTaskDelete,
   readOnly = false,
   isAdmin = false,
+  fullView = false,
   revealed = false,
   onInteractingChange,
+  watchedCursorIds,
 }: Props) {
   const gridWidth = days.length * DAY_W;
   const today = todayISO();
@@ -144,13 +151,14 @@ export function Timeline({
   const { min: visibleMin, max: visibleMax } = visibleRange(today);
   const visibleMinIdx = Math.max(0, diffDays(rangeStart, visibleMin));
   const visibleMaxIdx = Math.min(days.length - 1, diffDays(rangeStart, visibleMax));
-  // Der Blur-Schleier ist reine Kontrollanzeige für den Admin (zeigt an, ob die
-  // Verschleierung gerade aktiv ist); Klicks und Drag gehen bei ihm hindurch.
-  // Nicht-Admins bekommen keinen Blur mehr – ihr Raster ist stattdessen in App
-  // fest auf das Sichtfenster beschränkt, sodass es außerhalb nichts zu zeigen gibt.
+  // Der Blur-Schleier ist reine Kontrollanzeige für Benutzer mit Vollsicht
+  // (Admin & Beobachter): Er zeigt an, welchen Bereich die übrigen Benutzer
+  // gerade sehen. Klicks und Drag gehen hindurch. Benutzer ohne Vollsicht
+  // bekommen keinen Blur mehr – ihr Raster ist stattdessen in App fest auf das
+  // Sichtfenster beschränkt, sodass es außerhalb nichts zu zeigen gibt.
   // Bearbeitungsgrenzen gelten für Nicht-Admins weiterhin (der Server lehnt
   // Änderungen außerhalb des Fensters ohnehin ab).
-  const restrictVisibility = isAdmin && !revealed;
+  const restrictVisibility = fullView && !revealed;
   const restrictEditing = !isAdmin;
   const scrollRef = useRef<HTMLDivElement>(null);
   const laneRowRefs = useRef(new Map<number, HTMLDivElement>());
@@ -491,7 +499,7 @@ export function Timeline({
             ))}
             <BlurOverlays
               restrict={restrictVisibility}
-              passthrough={isAdmin}
+              passthrough={fullView}
               visibleMinIdx={visibleMinIdx}
               visibleMaxIdx={visibleMaxIdx}
               dayCount={days.length}
@@ -508,7 +516,7 @@ export function Timeline({
             ))}
             <BlurOverlays
               restrict={restrictVisibility}
-              passthrough={isAdmin}
+              passthrough={fullView}
               visibleMinIdx={visibleMinIdx}
               visibleMaxIdx={visibleMaxIdx}
               dayCount={days.length}
@@ -534,7 +542,7 @@ export function Timeline({
             ))}
             <BlurOverlays
               restrict={restrictVisibility}
-              passthrough={isAdmin}
+              passthrough={fullView}
               visibleMinIdx={visibleMinIdx}
               visibleMaxIdx={visibleMaxIdx}
               dayCount={days.length}
@@ -722,7 +730,7 @@ export function Timeline({
                 })}
                 <BlurOverlays
                   restrict={restrictVisibility}
-                  passthrough={isAdmin}
+                  passthrough={fullView}
                   visibleMinIdx={visibleMinIdx}
                   visibleMaxIdx={visibleMaxIdx}
                   dayCount={days.length}
@@ -731,6 +739,15 @@ export function Timeline({
             </div>
           );
         })}
+        <CursorLayer
+          days={days}
+          rangeStart={rangeStart}
+          dayW={DAY_W}
+          labelW={LABEL_W}
+          containerRef={scrollRef}
+          laneRowRefs={laneRowRefs}
+          watchedIds={watchedCursorIds}
+        />
       </div>
       {hover && !drag && (
         <div

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { Lane, Task, User } from "./types";
-import { canWrite, roleLabel } from "./types";
+import type { Lane, OnlineUser, Task, User } from "./types";
+import { canSeeAll, canWrite, roleLabel } from "./types";
+import { Presence } from "./Presence";
 import { Timeline } from "./Timeline";
 import { TaskModal } from "./TaskModal";
 import { LaneModal } from "./LaneModal";
@@ -59,6 +60,40 @@ export default function App() {
     active: false,
     until: null,
   });
+  const [online, setOnline] = useState<OnlineUser[]>([]);
+
+  // Live-Cursor: Wessen Zeiger wird angezeigt? Standard: nur Admins.
+  // Über Klick auf einen Presence-Avatar lässt sich das pro Benutzer
+  // umschalten; die Auswahl überlebt Reloads (localStorage).
+  const [cursorOverrides, setCursorOverrides] = useState<Record<number, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("roadmap:cursorWatch") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  // Effektive Auswahl: explizite Umschaltung gewinnt, sonst gilt der
+  // Standard „Admin-Cursor sichtbar". Der eigene Cursor wird nie angezeigt.
+  const watchedCursorIds = useMemo(() => {
+    const set = new Set<number>();
+    for (const u of online) {
+      if (user && u.id === user.id) continue;
+      if (cursorOverrides[u.id] ?? u.role === "admin") set.add(u.id);
+    }
+    return set;
+  }, [online, cursorOverrides, user]);
+
+  const toggleCursorWatch = useCallback(
+    (id: number) => {
+      setCursorOverrides((prev) => {
+        const next = { ...prev, [id]: !watchedCursorIds.has(id) };
+        localStorage.setItem("roadmap:cursorWatch", JSON.stringify(next));
+        return next;
+      });
+    },
+    [watchedCursorIds]
+  );
   const revealActiveRef = useRef(false);
   const versionRef = useRef(0);
   const staleRef = useRef(false);
@@ -66,6 +101,8 @@ export default function App() {
 
   const writable = user ? canWrite(user.role) : false;
   const isAdmin = user?.role === "admin";
+  // Vollsicht: Admin und Beobachter sehen das komplette Raster ohne Sichtfenster
+  const fullView = user ? canSeeAll(user.role) : false;
 
   const hiddenLaneCount = useMemo(() => lanes.filter((l) => l.hidden).length, [lanes]);
 
@@ -96,10 +133,10 @@ export default function App() {
     window.setTimeout(() => setToast(""), 4000);
   }, []);
 
-  // Nicht-Admins ohne aktive Enthüllung sehen ausschließlich ihr Sichtfenster
-  // und können nicht darüber hinaus scrollen. Admins – und während einer
-  // Enthüllung alle – sehen das volle Raster mit Navigation.
-  const clampToWindow = !isAdmin && !reveal.active;
+  // Benutzer ohne Vollsicht und ohne aktive Enthüllung sehen ausschließlich ihr
+  // Sichtfenster und können nicht darüber hinaus scrollen. Admins und Beobachter –
+  // und während einer Enthüllung alle – sehen das volle Raster mit Navigation.
+  const clampToWindow = !fullView && !reveal.active;
 
   const rangeStart = useMemo(() => {
     const today = todayISO();
@@ -163,6 +200,18 @@ export default function App() {
         const revealChanged = s.reveal.active !== revealActiveRef.current;
         revealActiveRef.current = s.reveal.active;
         setReveal(s.reveal);
+        setOnline(s.online ?? []);
+
+        // Rollenänderung durch den Admin sofort übernehmen (ohne Neu-Login).
+        // Bei unveränderten Daten bleibt das State-Objekt identisch (kein Re-Render).
+        if (s.me) {
+          const me = s.me;
+          setUser((prev) =>
+            prev && (prev.role !== me.role || prev.username !== me.username)
+              ? { ...prev, username: me.username, role: me.role }
+              : prev
+          );
+        }
 
         const firstRun = versionRef.current === 0;
         const versionChanged = s.version !== versionRef.current;
@@ -184,6 +233,7 @@ export default function App() {
     return () => {
       stopped = true;
       window.clearInterval(id);
+      setOnline([]);
     };
   }, [user, reload]);
 
@@ -425,6 +475,12 @@ export default function App() {
           <span className="user-chip">
             {user.username} · {roleLabel(user.role)}
           </span>
+          <Presence
+            online={online}
+            selfId={user.id}
+            watchedIds={watchedCursorIds}
+            onToggleCursor={toggleCursorWatch}
+          />
         </div>
         <div className="topbar-actions">
           {!clampToWindow && (
@@ -504,7 +560,9 @@ export default function App() {
         rangeStart={rangeStart}
         readOnly={!writable}
         isAdmin={isAdmin}
+        fullView={fullView}
         revealed={reveal.active}
+        watchedCursorIds={watchedCursorIds}
         onInteractingChange={handleInteractingChange}
         onTaskClick={(task) => setModal({ type: "task-edit", task })}
         onTaskChange={handleTaskChange}
@@ -533,7 +591,9 @@ export default function App() {
           ? isAdmin
             ? "Tipp: Auf eine freie Stelle klicken oder mehrere Tage markieren (ziehen), um eine Aufgabe anzulegen. Balken ziehen zum Verschieben, an den Rändern ziehen zum Verlängern/Verkürzen."
             : "Tipp: Auf eine freie Stelle klicken oder mehrere Tage markieren (ziehen), um eine Aufgabe anzulegen. Bereiche außerhalb von 2 Wochen Vergangenheit / 60 Tage Zukunft sind ausgeblendet."
-          : "Du hast nur Leserechte. Bereiche außerhalb deines Sichtfensters (2 Wochen zurück, 60 Tage voraus) sind ausgeblendet."}
+          : fullView
+            ? "Du hast Leserechte für die komplette Roadmap. Der Schleier markiert den Bereich, den die übrigen Benutzer gerade sehen."
+            : "Du hast nur Leserechte. Bereiche außerhalb deines Sichtfensters (2 Wochen zurück, 60 Tage voraus) sind ausgeblendet."}
       </footer>
 
       {modal.type === "task-new" && writable && (

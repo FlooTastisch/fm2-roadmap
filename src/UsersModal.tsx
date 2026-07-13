@@ -144,6 +144,7 @@ export function UsersModal({ currentUserId, onClose }: Props) {
                     >
                       <option value="admin">Administrator</option>
                       <option value="editor">Bearbeiten</option>
+                      <option value="observer">Beobachter (alles sehen, nur lesen)</option>
                       <option value="viewer">Nur lesen</option>
                     </select>
                     <input
@@ -209,6 +210,7 @@ export function UsersModal({ currentUserId, onClose }: Props) {
             Rechte
             <select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>
               <option value="editor">Bearbeiten (lesen & schreiben)</option>
+              <option value="observer">Beobachter (alles sehen, nur lesen)</option>
               <option value="viewer">Nur lesen</option>
             </select>
           </label>

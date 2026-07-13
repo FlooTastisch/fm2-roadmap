@@ -14,7 +14,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'viewer')),
+    role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'observer', 'viewer')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -96,6 +96,32 @@ if (!userCols.some((c) => c.name === "birthdate")) {
 // wer sich schon registriert bzw. eingeloggt hat)
 if (!userCols.some((c) => c.name === "last_login")) {
   db.exec("ALTER TABLE users ADD COLUMN last_login TEXT");
+}
+
+// Migration: neue Rolle 'observer' (Vollsicht ohne Schreib-/Admin-Rechte).
+// SQLite kann CHECK-Constraints nicht ändern – Tabelle einmalig neu aufbauen,
+// falls die alte Constraint 'observer' noch nicht erlaubt.
+const usersTableSql =
+  db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get()?.sql ?? "";
+if (!usersTableSql.includes("'observer'")) {
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('admin', 'editor', 'observer', 'viewer')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        birthdate TEXT NOT NULL DEFAULT '',
+        last_login TEXT
+      );
+      INSERT INTO users_new (id, username, password_hash, role, created_at, birthdate, last_login)
+        SELECT id, username, password_hash, role, created_at, birthdate, last_login FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+  })();
+  console.log("Migration: Rolle 'observer' in users-Tabelle erlaubt.");
 }
 if (!taskCols.some((c) => c.name === "row_index")) {
   db.exec("ALTER TABLE tasks ADD COLUMN row_index INTEGER NOT NULL DEFAULT 0");

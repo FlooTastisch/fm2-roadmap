@@ -1,4 +1,4 @@
-import type { Lane, Role, Task, User } from "./types";
+import type { CursorPos, Lane, OnlineUser, RemoteCursor, Role, Task, User } from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -71,9 +71,21 @@ export const api = {
     }),
 
   state: () =>
-    request<{ version: number; reveal: { active: boolean; until: number | null } }>(
-      "/api/state"
-    ),
+    request<{
+      version: number;
+      reveal: { active: boolean; until: number | null };
+      online: OnlineUser[];
+      /** Eigene aktuelle Benutzerdaten – Rollenänderungen greifen so sofort */
+      me: User | null;
+    }>("/api/state"),
+
+  /** Eigene Cursor-Position melden (null = Zeiger nicht über dem Raster)
+   *  und die frischen Positionen der anderen abholen */
+  cursors: (pos: CursorPos | null) =>
+    request<{ cursors: RemoteCursor[] }>("/api/cursors", {
+      method: "POST",
+      body: JSON.stringify({ pos }),
+    }),
 
   tasks: () => request<Task[]>("/api/tasks"),
   createTask: (data: Partial<Task>) =>

@@ -18,7 +18,7 @@ export function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(hash, test);
 }
 
-export const ROLES = ["admin", "editor", "viewer"];
+export const ROLES = ["admin", "editor", "observer", "viewer"];
 
 export function canWrite(role) {
   return role === "admin" || role === "editor";
@@ -26,4 +26,10 @@ export function canWrite(role) {
 
 export function isAdmin(role) {
   return role === "admin";
+}
+
+/** Sieht die komplette Roadmap ohne Sichtfenster-Begrenzung
+ *  (Admin sowie Beobachter – Letzterer ohne Schreib-/Admin-Rechte). */
+export function canSeeAll(role) {
+  return role === "admin" || role === "observer";
 }

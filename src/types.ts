@@ -1,4 +1,4 @@
-export type Role = "admin" | "editor" | "viewer";
+export type Role = "admin" | "editor" | "observer" | "viewer";
 
 export interface User {
   id: number;
@@ -9,6 +9,32 @@ export interface User {
   registered?: boolean;
   /** Zeitpunkt der letzten Anmeldung (UTC, "YYYY-MM-DD HH:MM:SS") oder null */
   last_login?: string | null;
+}
+
+/** Benutzer, der die Roadmap gerade geöffnet hat (Live-Presence) */
+export interface OnlineUser {
+  id: number;
+  username: string;
+  role: Role;
+}
+
+/** Raster-basierte Cursor-Position: Datum + Anteil im Tag, Zeile + Anteil in der Zeile */
+export interface CursorPos {
+  /** Tag (ISO), über dem der Zeiger steht */
+  d: string;
+  /** Anteil innerhalb des Tages (0..1) */
+  df: number;
+  /** Lane-ID */
+  lane: number;
+  /** Anteil innerhalb der Zeilenhöhe (0..1) */
+  lf: number;
+}
+
+/** Live-Cursor eines anderen Benutzers */
+export interface RemoteCursor extends CursorPos {
+  id: number;
+  username: string;
+  role: Role;
 }
 
 export interface Lane {
@@ -44,12 +70,19 @@ export function canWrite(role: Role) {
   return role === "admin" || role === "editor";
 }
 
+/** Sieht die komplette Roadmap ohne Sichtfenster-Begrenzung (Admin & Beobachter) */
+export function canSeeAll(role: Role) {
+  return role === "admin" || role === "observer";
+}
+
 export function roleLabel(role: Role) {
   switch (role) {
     case "admin":
       return "Administrator";
     case "editor":
       return "Bearbeiten";
+    case "observer":
+      return "Beobachter";
     case "viewer":
       return "Nur lesen";
   }

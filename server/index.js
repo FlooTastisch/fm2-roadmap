@@ -3,7 +3,7 @@ import cookieParser from "cookie-parser";
 import crypto from "node:crypto";
 import path from "node:path";
 import { db } from "./db.js";
-import { hashPassword, verifyPassword, canWrite, isAdmin, ROLES } from "./auth.js";
+import { hashPassword, verifyPassword, canWrite, isAdmin, canSeeAll, ROLES } from "./auth.js";
 import { assertDatesInWindow, taskVisibleForUser } from "./dates.js";
 import { recordHistory, undoLast, historyCount } from "./history.js";
 import { getDataVersion } from "./state.js";
@@ -17,22 +17,35 @@ import {
 const PORT = process.env.PORT || 3000;
 const SESSION_COOKIE = "roadmap_session";
 
-// token -> { userId, username, role }
+// token -> userId. Benutzername und Rolle werden bewusst NICHT in der Session
+// gecacht, sondern pro Anfrage frisch aus der Datenbank gelesen – so greifen
+// Rollenänderungen durch den Admin sofort (ohne Neu-Login) und gelöschte
+// Benutzer verlieren umgehend den Zugriff.
 const sessions = new Map();
 
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
+const getSessionUser = db.prepare("SELECT id, username, role FROM users WHERE id = ?");
+
 function getSession(req) {
   const token = req.cookies[SESSION_COOKIE];
   if (!token) return null;
-  return sessions.get(token) ?? null;
+  const userId = sessions.get(token);
+  if (userId === undefined) return null;
+  const user = getSessionUser.get(userId);
+  if (!user) {
+    // Benutzer wurde inzwischen gelöscht → Session ungültig
+    sessions.delete(token);
+    return null;
+  }
+  return { userId: user.id, username: user.username, role: user.role };
 }
 
 function createSession(res, user) {
   const token = crypto.randomBytes(32).toString("hex");
-  sessions.set(token, { userId: user.id, username: user.username, role: user.role });
+  sessions.set(token, user.id);
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -78,7 +91,15 @@ app.post("/api/login", (req, res) => {
 
 app.post("/api/logout", (req, res) => {
   const token = req.cookies[SESSION_COOKIE];
-  if (token) sessions.delete(token);
+  if (token) {
+    const userId = sessions.get(token);
+    // Sofort aus der Online-Anzeige entfernen (nicht erst nach Ablauf des TTL)
+    if (userId !== undefined) {
+      presence.delete(userId);
+      cursors.delete(userId);
+    }
+    sessions.delete(token);
+  }
   res.clearCookie(SESSION_COOKIE);
   res.json({ ok: true });
 });
@@ -370,13 +391,100 @@ app.get("/api/reveal", (_req, res) => {
   res.json({ active, until: active ? revealUntil : null });
 });
 
+// ---------- Presence (wer hat die Roadmap gerade offen?) ----------
+
+// Jeder Client meldet sich über das /api/state-Polling alle 2 Sekunden.
+// Wer länger als PRESENCE_TTL_MS nichts von sich hören lässt (Tab zu,
+// Rechner im Standby), fällt aus der Online-Liste heraus.
+const PRESENCE_TTL_MS = 8 * 1000;
+// userId -> { username, role, lastSeen }
+const presence = new Map();
+
+function markPresence(session) {
+  presence.set(session.userId, {
+    username: session.username,
+    role: session.role,
+    lastSeen: Date.now(),
+  });
+}
+
+function onlineUsers() {
+  const cutoff = Date.now() - PRESENCE_TTL_MS;
+  const list = [];
+  for (const [userId, entry] of presence) {
+    if (entry.lastSeen < cutoff) {
+      presence.delete(userId);
+      continue;
+    }
+    list.push({ id: userId, username: entry.username, role: entry.role });
+  }
+  list.sort((a, b) => a.username.localeCompare(b.username, "de", { sensitivity: "base" }));
+  return list;
+}
+
+// ---------- Live-Cursor (à la Figma: Mauszeiger der anderen sehen) ----------
+
+// Positionen sind raster-basiert (Datum + Zeile + Anteil), nicht bildschirm-
+// basiert – nur so stimmen sie bei unterschiedlichen Scroll-Positionen und
+// Fenstergrößen. Kein Persistieren nötig: reiner Live-Zustand im Speicher.
+const CURSOR_TTL_MS = 5 * 1000;
+// userId -> { username, role, pos, ts }
+const cursors = new Map();
+
+function normalizeCursorPos(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const d = String(raw.d ?? "");
+  const df = Number(raw.df);
+  const lane = Number(raw.lane);
+  const lf = Number(raw.lf);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  if (!Number.isFinite(df) || !Number.isFinite(lf) || !Number.isInteger(lane)) return null;
+  return {
+    d,
+    df: Math.max(0, Math.min(1, df)),
+    lane,
+    lf: Math.max(0, Math.min(1, lf)),
+  };
+}
+
+// Meldet die eigene Position (oder null = Zeiger nicht über dem Raster) und
+// liefert im selben Rutsch die frischen Positionen aller anderen zurück.
+app.post("/api/cursors", (req, res) => {
+  const session = getSession(req);
+  const pos = normalizeCursorPos(req.body?.pos);
+  const now = Date.now();
+  if (pos) {
+    cursors.set(session.userId, { username: session.username, role: session.role, pos, ts: now });
+  } else {
+    cursors.delete(session.userId);
+  }
+  const list = [];
+  for (const [userId, entry] of cursors) {
+    if (now - entry.ts > CURSOR_TTL_MS) {
+      cursors.delete(userId);
+      continue;
+    }
+    if (userId === session.userId) continue;
+    list.push({ id: userId, username: entry.username, role: entry.role, ...entry.pos });
+  }
+  res.json({ cursors: list });
+});
+
 // Leichtgewichtiger Sammel-Endpunkt fürs Live-Polling: Daten-Version (für
-// Echtzeit-Updates) und aktueller Enthüllungs-Status in einer Anfrage.
-app.get("/api/state", (_req, res) => {
+// Echtzeit-Updates), aktueller Enthüllungs-Status, die Liste der gerade
+// aktiven Benutzer und die eigenen Benutzerdaten in einer Anfrage. Letzteres
+// lässt z. B. Rollenänderungen durch den Admin ohne Neu-Login sofort greifen.
+app.get("/api/state", (req, res) => {
+  const session = getSession(req);
+  if (session) markPresence(session);
   const active = revealActive();
   res.json({
     version: getDataVersion(),
     reveal: { active, until: active ? revealUntil : null },
+    online: onlineUsers(),
+    me: session
+      ? { id: session.userId, username: session.username, role: session.role }
+      : null,
   });
 });
 
@@ -422,9 +530,11 @@ function checkPlacement({ laneId, rowIndex, rowSpan, start, end, excludeTaskId =
 }
 
 function presentTasksForSession(tasks, session) {
-  if (isAdmin(session.role) || revealActive()) return tasks;
-  // Nicht-Admins ohne aktive Enthüllung erhalten alle Aufgaben, die den
-  // sichtbaren Bereich überlappen (am Rand schneidet das Frontend sie ab).
+  // Admins und Beobachter sehen immer alles; alle anderen nur während
+  // einer aktiven Enthüllung.
+  if (canSeeAll(session.role) || revealActive()) return tasks;
+  // Sonst erhalten Clients alle Aufgaben, die den sichtbaren Bereich
+  // überlappen (am Rand schneidet das Frontend sie ab).
   // Aufgaben komplett außerhalb verlassen den Server gar nicht.
   return tasks.filter((t) => taskVisibleForUser(t));
 }
