@@ -4,7 +4,7 @@ import type { CursorFocus, CursorPos, Lane, RemoteCursor, Task } from "./types";
 import type { DayInfo } from "./dates";
 import { diffDays } from "./dates";
 import { cursorColor } from "./cursorColor";
-import { BAR_INSET, DAY_W, laneMetrics } from "./timelineMetrics";
+import { BAR_INSET, laneMetrics } from "./timelineMetrics";
 
 /** Sende-/Abhol-Intervall. Zusammen mit der CSS-Transition auf dem Cursor
  *  ergibt das eine flüssige Bewegung ohne Websocket-Infrastruktur. */
@@ -14,6 +14,8 @@ interface Props {
   days: DayInfo[];
   rangeStart: string;
   labelW: number;
+  /** Breite einer Tageskachel in px (normal oder vergrößert) */
+  dayWidth: number;
   lanes: Lane[];
   tasks: Task[];
   /** Scroll-Container der Timeline */
@@ -35,6 +37,7 @@ function focusRect(
   days: DayInfo[],
   rangeStart: string,
   labelW: number,
+  dayWidth: number,
   laneRowRefs: Map<number, HTMLDivElement>
 ): { left: number; top: number; width: number; height: number } | null {
   if (focus.kind === "task") {
@@ -53,9 +56,9 @@ function focusRect(
     const rowIndex = Math.min(task.row_index ?? 0, subRows - 1);
     const rowSpan = Math.max(1, Math.min(task.row_span ?? 1, subRows - rowIndex));
     return {
-      left: labelW + clampedStart * DAY_W + BAR_INSET,
+      left: labelW + clampedStart * dayWidth + BAR_INSET,
       top: laneEl.offsetTop + m.lanePad + rowIndex * m.subH,
-      width: clampedSpan * DAY_W - BAR_INSET * 2,
+      width: clampedSpan * dayWidth - BAR_INSET * 2,
       height: rowSpan * m.barH + (rowSpan - 1) * m.barGap,
     };
   }
@@ -69,9 +72,9 @@ function focusRect(
   const rowIndex = Math.min(focus.rowIndex, (lane.sub_rows ?? 1) - 1);
   const rowSpan = Math.max(1, focus.rowSpan);
   return {
-    left: labelW + startIdx * DAY_W + 1,
+    left: labelW + startIdx * dayWidth + 1,
     top: laneEl.offsetTop + m.lanePad + rowIndex * m.subH - 1,
-    width: (endIdx - startIdx + 1) * DAY_W - 2,
+    width: (endIdx - startIdx + 1) * dayWidth - 2,
     height: rowSpan * m.barH + (rowSpan - 1) * m.barGap + 2,
   };
 }
@@ -84,6 +87,7 @@ export function CursorLayer({
   days,
   rangeStart,
   labelW,
+  dayWidth,
   lanes,
   tasks,
   containerRef,
@@ -111,7 +115,7 @@ export function CursorLayer({
 
       const daysLeft = innerRect.left + labelW;
       if (e.clientX >= daysLeft) {
-        const dayFloat = (e.clientX - daysLeft) / DAY_W;
+        const dayFloat = (e.clientX - daysLeft) / dayWidth;
         const idx = Math.floor(dayFloat);
         if (idx >= 0 && idx < days.length) {
           lastDayRef.current = { d: days[idx].iso, df: dayFloat - idx };
@@ -132,7 +136,7 @@ export function CursorLayer({
       scrollEl.removeEventListener("pointermove", onMove);
       scrollEl.removeEventListener("pointerleave", onLeave);
     };
-  }, [containerRef, innerRef, days, labelW]);
+  }, [containerRef, innerRef, days, labelW, dayWidth]);
 
   // Melden + Abholen
   useEffect(() => {
@@ -163,9 +167,9 @@ export function CursorLayer({
         const color = cursorColor(c.id);
         const dayIdx = diffDays(rangeStart, c.d);
         const showCursor = dayIdx >= 0 && dayIdx < days.length;
-        const x = labelW + (dayIdx + c.df) * DAY_W;
+        const x = labelW + (dayIdx + c.df) * dayWidth;
         const rect = c.focus
-          ? focusRect(c.focus, tasks, lanes, days, rangeStart, labelW, laneRowRefs.current)
+          ? focusRect(c.focus, tasks, lanes, days, rangeStart, labelW, dayWidth, laneRowRefs.current)
           : null;
 
         return (

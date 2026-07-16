@@ -1,4 +1,6 @@
+/** Normale und vergrößerte Breite der Tageskacheln (umschaltbar pro Benutzer) */
 export const DAY_W = 26;
+export const DAY_W_WIDE = 52;
 export const LANE_PAD = 3;
 /** Horizontaler Innenabstand der Aufgaben-Balken (links + rechts, symmetrisch) */
 export const BAR_INSET = 2;

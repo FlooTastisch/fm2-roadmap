@@ -8,6 +8,7 @@ import { TaskModal } from "./TaskModal";
 import { LaneModal } from "./LaneModal";
 import { UsersModal } from "./UsersModal";
 import { addDays, buildDays, diffDays, startOfWeek, todayISO, visibleRange } from "./dates";
+import { DAY_W, DAY_W_WIDE } from "./timelineMetrics";
 
 const WEEKS_BEFORE = 4;
 const WEEKS_TOTAL = 30;
@@ -56,6 +57,17 @@ export default function App() {
   const [undoCount, setUndoCount] = useState(0);
   const [toast, setToast] = useState("");
   const [showHidden, setShowHidden] = useState(false);
+  // Vergrößerte Tageskacheln (doppelte Breite) – Einstellung pro Benutzer/Gerät,
+  // überlebt Reloads via localStorage
+  const [wideTiles, setWideTiles] = useState(
+    () => localStorage.getItem("roadmap:wideTiles") === "1"
+  );
+  const toggleWideTiles = useCallback(() => {
+    setWideTiles((v) => {
+      localStorage.setItem("roadmap:wideTiles", v ? "0" : "1");
+      return !v;
+    });
+  }, []);
   const [reveal, setReveal] = useState<{ active: boolean; until: number | null }>({
     active: false,
     until: null,
@@ -560,6 +572,17 @@ export default function App() {
             <button onClick={() => setModal({ type: "users" })}>Benutzer</button>
           )}
           <button
+            onClick={toggleWideTiles}
+            className={wideTiles ? "active-toggle" : ""}
+            title={
+              wideTiles
+                ? "Tageskacheln wieder auf normale Breite verkleinern"
+                : "Tageskacheln doppelt so breit anzeigen (bessere Lesbarkeit)"
+            }
+          >
+            {wideTiles ? "Normale Kacheln" : "Vergrößerte Kacheln"}
+          </button>
+          <button
             onClick={() => {
               api.logout().then(() => setUser(null));
             }}
@@ -574,6 +597,7 @@ export default function App() {
         tasks={visibleTasks}
         days={days}
         rangeStart={rangeStart}
+        dayWidth={wideTiles ? DAY_W_WIDE : DAY_W}
         readOnly={!writable}
         isAdmin={isAdmin}
         fullView={fullView}

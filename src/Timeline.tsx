@@ -13,9 +13,7 @@ import {
 } from "./dates";
 import { mcHeadUrl } from "./mcHead";
 import { CursorLayer } from "./CursorLayer";
-import { BAR_INSET, DAY_W, laneMetrics, laneRowHeight } from "./timelineMetrics";
-
-export { DAY_W } from "./timelineMetrics";
+import { BAR_INSET, laneMetrics, laneRowHeight } from "./timelineMetrics";
 
 interface CreateSelectState {
   laneId: number;
@@ -45,6 +43,8 @@ interface Props {
   tasks: Task[];
   days: DayInfo[];
   rangeStart: string;
+  /** Breite einer Tageskachel in px (normal oder vergrößert) */
+  dayWidth: number;
   onTaskClick: (task: Task) => void;
   onTaskChange: (id: number, data: Partial<Task>) => void;
   onCreateRange: (
@@ -87,6 +87,7 @@ function BlurOverlays({
   visibleMinIdx,
   visibleMaxIdx,
   dayCount,
+  dayWidth,
 }: {
   restrict: boolean;
   /** Admin: Schleier nur optisch, Klicks/Drag gehen hindurch */
@@ -94,20 +95,21 @@ function BlurOverlays({
   visibleMinIdx: number;
   visibleMaxIdx: number;
   dayCount: number;
+  dayWidth: number;
 }) {
   if (!restrict) return null;
   const cls = "tl-blur-zone" + (passthrough ? " passthrough" : "");
   return (
     <>
       {visibleMinIdx > 0 && (
-        <div className={cls + " left"} style={{ width: visibleMinIdx * DAY_W }} />
+        <div className={cls + " left"} style={{ width: visibleMinIdx * dayWidth }} />
       )}
       {visibleMaxIdx < dayCount - 1 && (
         <div
           className={cls + " right"}
           style={{
-            left: (visibleMaxIdx + 1) * DAY_W,
-            width: (dayCount - visibleMaxIdx - 1) * DAY_W,
+            left: (visibleMaxIdx + 1) * dayWidth,
+            width: (dayCount - visibleMaxIdx - 1) * dayWidth,
           }}
         />
       )}
@@ -120,6 +122,7 @@ export function Timeline({
   tasks,
   days,
   rangeStart,
+  dayWidth,
   onTaskClick,
   onTaskChange,
   onCreateRange,
@@ -133,6 +136,8 @@ export function Timeline({
   watchedCursorIds,
   cursorFocus,
 }: Props) {
+  // Alle Pixelrechnungen in der Komponente basieren auf der umschaltbaren Breite
+  const DAY_W = dayWidth;
   const gridWidth = days.length * DAY_W;
   const today = todayISO();
   const todayIdx = diffDays(rangeStart, today);
@@ -196,6 +201,17 @@ export function Timeline({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Beim Umschalten der Kachelbreite die Scroll-Position proportional anpassen,
+  // damit derselbe Zeitraum sichtbar bleibt
+  const prevDayWidthRef = useRef(DAY_W);
+  useEffect(() => {
+    const prev = prevDayWidthRef.current;
+    if (prev !== DAY_W && scrollRef.current) {
+      scrollRef.current.scrollLeft = (scrollRef.current.scrollLeft / prev) * DAY_W;
+    }
+    prevDayWidthRef.current = DAY_W;
+  }, [DAY_W]);
 
   const tasksByLane = useMemo(() => {
     const map = new Map<number, Task[]>();
@@ -297,7 +313,7 @@ export function Timeline({
       }
       setPreview({ start: nextStart, end: nextEnd, laneId, rowIndex, rowSpan });
     },
-    [drag, restrictEditing, today, lanesById, rowFromClientY]
+    [drag, restrictEditing, today, lanesById, rowFromClientY, DAY_W]
   );
 
   const onPointerUp = useCallback(() => {
@@ -487,6 +503,7 @@ export function Timeline({
               </div>
             ))}
             <BlurOverlays
+              dayWidth={DAY_W}
               restrict={restrictVisibility}
               passthrough={fullView}
               visibleMinIdx={visibleMinIdx}
@@ -504,6 +521,7 @@ export function Timeline({
               </div>
             ))}
             <BlurOverlays
+              dayWidth={DAY_W}
               restrict={restrictVisibility}
               passthrough={fullView}
               visibleMinIdx={visibleMinIdx}
@@ -530,6 +548,7 @@ export function Timeline({
               </div>
             ))}
             <BlurOverlays
+              dayWidth={DAY_W}
               restrict={restrictVisibility}
               passthrough={fullView}
               visibleMinIdx={visibleMinIdx}
@@ -718,6 +737,7 @@ export function Timeline({
                   );
                 })}
                 <BlurOverlays
+                  dayWidth={DAY_W}
                   restrict={restrictVisibility}
                   passthrough={fullView}
                   visibleMinIdx={visibleMinIdx}
@@ -732,6 +752,7 @@ export function Timeline({
           days={days}
           rangeStart={rangeStart}
           labelW={LABEL_W}
+          dayWidth={DAY_W}
           lanes={lanes}
           tasks={tasks}
           containerRef={scrollRef}
