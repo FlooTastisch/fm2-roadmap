@@ -73,10 +73,16 @@ export default function App() {
     until: null,
   });
   const [online, setOnline] = useState<OnlineUser[]>([]);
+  const [cursorShare, setCursorShare] = useState<{ active: boolean; until: number | null }>({
+    active: false,
+    until: null,
+  });
+  const [sharingIds, setSharingIds] = useState<Set<number>>(() => new Set());
+  const cursorShareActiveRef = useRef(false);
 
-  // Live-Cursor: Wessen Zeiger wird angezeigt? Standard: nur Admins.
-  // Über Klick auf einen Presence-Avatar lässt sich das pro Benutzer
-  // umschalten; die Auswahl überlebt Reloads (localStorage).
+  // Live-Cursor: Wessen Zeiger wird angezeigt? Standard: wer seinen Cursor
+  // gerade freigibt (Opt-in). Über Klick auf einen Presence-Avatar lässt sich
+  // das pro Benutzer umschalten; die Auswahl überlebt Reloads (localStorage).
   const [cursorOverrides, setCursorOverrides] = useState<Record<number, boolean>>(() => {
     try {
       return JSON.parse(localStorage.getItem("roadmap:cursorWatch") ?? "{}");
@@ -86,15 +92,15 @@ export default function App() {
   });
 
   // Effektive Auswahl: explizite Umschaltung gewinnt, sonst gilt der
-  // Standard „Admin-Cursor sichtbar". Der eigene Cursor wird nie angezeigt.
+  // Standard „Cursor von Freigebern sichtbar". Der eigene Cursor wird nie angezeigt.
   const watchedCursorIds = useMemo(() => {
     const set = new Set<number>();
     for (const u of online) {
       if (user && u.id === user.id) continue;
-      if (cursorOverrides[u.id] ?? u.role === "admin") set.add(u.id);
+      if (cursorOverrides[u.id] ?? sharingIds.has(u.id)) set.add(u.id);
     }
     return set;
-  }, [online, cursorOverrides, user]);
+  }, [online, cursorOverrides, sharingIds, user]);
 
   // Solange ein Aufgaben-Modal offen ist, an andere melden, was gerade bearbeitet wird
   const cursorFocus = useMemo((): CursorFocus | null => {
@@ -229,6 +235,9 @@ export default function App() {
         revealActiveRef.current = s.reveal.active;
         setReveal(s.reveal);
         setOnline(s.online ?? []);
+        setCursorShare(s.cursorShare ?? { active: false, until: null });
+        cursorShareActiveRef.current = !!s.cursorShare?.active;
+        setSharingIds(new Set(s.sharingIds ?? []));
 
         // Rollenänderung durch den Admin sofort übernehmen (ohne Neu-Login).
         // Bei unveränderten Daten bleibt das State-Objekt identisch (kein Re-Render).
@@ -262,6 +271,9 @@ export default function App() {
       stopped = true;
       window.clearInterval(id);
       setOnline([]);
+      setSharingIds(new Set());
+      setCursorShare({ active: false, until: null });
+      cursorShareActiveRef.current = false;
     };
   }, [user, reload]);
 
@@ -274,6 +286,21 @@ export default function App() {
         r.active
           ? "Verschleierung aufgehoben – alle sehen jetzt alles (max. 10 Minuten)"
           : "Verschleierung wieder aktiv"
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Umschalten fehlgeschlagen");
+    }
+  }, [showToast]);
+
+  const toggleCursorShare = useCallback(async () => {
+    try {
+      const r = await api.setCursorShare(!cursorShareActiveRef.current);
+      cursorShareActiveRef.current = r.active;
+      setCursorShare(r);
+      showToast(
+        r.active
+          ? "Dein Cursor ist jetzt für andere sichtbar (max. 60 Minuten)"
+          : "Cursor-Freigabe beendet"
       );
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Umschalten fehlgeschlagen");
@@ -550,6 +577,22 @@ export default function App() {
                 : "Blur aufheben"}
             </button>
           )}
+          <button
+            onClick={toggleCursorShare}
+            className={cursorShare.active ? "cursor-share-on" : ""}
+            title={
+              cursorShare.active
+                ? "Andere sehen gerade deinen Mauszeiger – klicken zum Beenden (endet automatisch nach 60 Minuten)"
+                : "Deinen Cursor für andere sichtbar machen (endet automatisch nach 60 Minuten)"
+            }
+          >
+            {cursorShare.active
+              ? `Cursor aus (noch ${Math.max(
+                  1,
+                  Math.ceil(((cursorShare.until ?? 0) - Date.now()) / 60000)
+                )} min)`
+              : "Cursor teilen"}
+          </button>
           {isAdmin && (
             <button
               onClick={handleUndo}

@@ -25,7 +25,7 @@ function Avatar({
   const label = isSelf
     ? `${user.username} (du) · ${roleLabel(user.role)}`
     : `${user.username} · ${roleLabel(user.role)} · ${
-        watched ? "Cursor sichtbar – klicken zum Ausblenden" : "Klicken, um Cursor anzuzeigen"
+        watched ? "Cursor sichtbar – klicken zum Ausblenden" : "Klicken, um Cursor anzuzeigen (nur wenn freigegeben)"
       }`;
   return (
     <button

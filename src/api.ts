@@ -77,6 +77,10 @@ export const api = {
       online: OnlineUser[];
       /** Eigene aktuelle Benutzerdaten – Rollenänderungen greifen so sofort */
       me: User | null;
+      /** Eigene Cursor-Freigabe (Opt-in, max. 60 Minuten) */
+      cursorShare: { active: boolean; until: number | null };
+      /** Benutzer-IDs, die ihren Cursor gerade teilen */
+      sharingIds: number[];
     }>("/api/state"),
 
   /** Eigene Cursor-Position melden (null = Zeiger nicht über dem Raster)
@@ -85,6 +89,12 @@ export const api = {
     request<{ cursors: RemoteCursor[] }>("/api/cursors", {
       method: "POST",
       body: JSON.stringify({ pos, focus: focus ?? null }),
+    }),
+
+  setCursorShare: (active: boolean) =>
+    request<{ active: boolean; until: number | null }>("/api/cursor-share", {
+      method: "POST",
+      body: JSON.stringify({ active }),
     }),
 
   tasks: () => request<Task[]>("/api/tasks"),

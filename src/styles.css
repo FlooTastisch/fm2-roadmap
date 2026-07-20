@@ -248,6 +248,18 @@ button.reveal-on:hover {
   background: #fde68a;
 }
 
+/* Cursor-Sharing aktiv: eigener Zeiger ist für andere sichtbar */
+button.cursor-share-on {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #166534;
+  font-weight: 600;
+}
+
+button.cursor-share-on:hover {
+  background: #bbf7d0;
+}
+
 button.danger {
   background: #dc2626;
   border-color: #dc2626;
