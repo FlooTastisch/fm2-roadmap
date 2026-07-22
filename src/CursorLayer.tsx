@@ -174,12 +174,17 @@ export function CursorLayer({
       {visible.map((c) => {
         const mode = cursorModes[c.id] ?? "off";
         const color = cursorColor(c.id);
-        const dayIdx = diffDays(rangeStart, c.d);
-        const showCursor = mode === "always" && dayIdx >= 0 && dayIdx < days.length;
-        const x = labelW + (dayIdx + c.df) * dayWidth;
+        const hasPos =
+          typeof c.d === "string" && Number.isFinite(c.df) && Number.isFinite(c.y);
+        const dayIdx = hasPos ? diffDays(rangeStart, c.d as string) : -1;
+        const showCursor = mode === "always" && hasPos && dayIdx >= 0 && dayIdx < days.length;
+        const x = hasPos ? labelW + (dayIdx + (c.df as number)) * dayWidth : 0;
+        const y = hasPos ? (c.y as number) : 0;
         const rect = c.focus
           ? focusRect(c.focus, tasks, lanes, days, rangeStart, labelW, dayWidth, laneRowRefs.current)
           : null;
+
+        if (!showCursor && !rect) return null;
 
         return (
           <Fragment key={c.id}>
@@ -199,7 +204,7 @@ export function CursorLayer({
             {showCursor && (
               <div
                 className="remote-cursor"
-                style={{ transform: `translate(${x}px, ${c.y}px)` }}
+                style={{ transform: `translate(${x}px, ${y}px)` }}
               >
                 <svg width="18" height="20" viewBox="0 0 18 20">
                   <path

@@ -45,11 +45,14 @@ export type CursorFocus =
       rowSpan: number;
     };
 
-/** Live-Cursor eines anderen Benutzers */
-export interface RemoteCursor extends CursorPos {
+/** Live-Cursor eines anderen Benutzers (Position optional, z. B. nur Fokus) */
+export interface RemoteCursor {
   id: number;
   username: string;
   role: Role;
+  d?: string;
+  df?: number;
+  y?: number;
   focus?: CursorFocus | null;
 }
 

@@ -495,6 +495,24 @@ function normalizeCursorFocus(raw) {
   return null;
 }
 
+/** Fokus nur an Empfänger weitergeben, die die betreffende Aufgabe/den
+ *  Zeitraum auch über /api/tasks sehen dürften – sonst leaken Metadaten
+ *  außerhalb des Sichtfensters. */
+function presentCursorFocus(focus, session) {
+  if (!focus) return null;
+  if (canSeeAll(session.role) || revealActive()) return focus;
+  if (focus.kind === "task") {
+    const task = db.prepare("SELECT start_date, end_date FROM tasks WHERE id = ?").get(focus.taskId);
+    if (!task || !taskVisibleForUser(task)) return null;
+    return focus;
+  }
+  if (focus.kind === "range") {
+    if (!taskVisibleForUser({ start_date: focus.start, end_date: focus.end })) return null;
+    return focus;
+  }
+  return null;
+}
+
 // Meldet die eigene Position und optional den Fokus (geöffnetes Modal) und
 // liefert im selben Rutsch die frischen Cursor der anderen zurück.
 // Eigene Position wird nur gespeichert, wenn Cursor-Sharing aktiv ist.
@@ -505,8 +523,10 @@ app.post("/api/cursors", (req, res) => {
     const pos = normalizeCursorPos(req.body?.pos);
     const focus = normalizeCursorFocus(req.body?.focus);
     const prev = cursors.get(session.userId);
-    const effectivePos = pos ?? (focus ? prev?.pos ?? null : null);
-    if (effectivePos) {
+    // Letzte bekannte Position behalten, solange Fokus (Modal) aktiv ist –
+    // sonst würde der Eintrag verschwinden, sobald die Maus das Raster verlässt.
+    const effectivePos = pos ?? prev?.pos ?? null;
+    if (effectivePos || focus) {
       cursors.set(session.userId, {
         username: session.username,
         role: session.role,
@@ -533,8 +553,8 @@ app.post("/api/cursors", (req, res) => {
       id: userId,
       username: entry.username,
       role: entry.role,
-      ...entry.pos,
-      focus: entry.focus ?? null,
+      ...(entry.pos ?? {}),
+      focus: presentCursorFocus(entry.focus ?? null, session),
     });
   }
   res.json({ cursors: list });
