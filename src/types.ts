@@ -18,6 +18,9 @@ export interface OnlineUser {
   role: Role;
 }
 
+/** Wie der Live-Cursor eines anderen Benutzers dargestellt wird. */
+export type CursorDisplayMode = "off" | "action" | "always";
+
 /** Raster-basierte Cursor-Position: Datum + absolute Y-Position im Timeline-Inhalt.
  *  Y in Pixeln ab Oberkante von .tl-inner – funktioniert auch über Trennlinien
  *  und unterhalb der letzten Zeile, ohne an einzelne Lane-Zellen gebunden zu sein. */

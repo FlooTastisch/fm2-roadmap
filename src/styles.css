@@ -106,6 +106,43 @@ body {
   border-color: var(--accent);
 }
 
+.presence-avatar.cursor-mode-action {
+  border-style: dashed;
+}
+
+.presence-avatar.cursor-mode-always {
+  border-style: solid;
+  box-shadow: 0 0 0 1px var(--panel), 0 0 0 2px currentColor;
+}
+
+.presence-avatar.cursor-mode-action::before,
+.presence-avatar.cursor-mode-always::before {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 999px;
+  border: 1px solid var(--panel);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 10px;
+  text-align: center;
+  z-index: 2;
+}
+
+.presence-avatar.cursor-mode-action::before {
+  content: "A";
+  background: #d97706;
+}
+
+.presence-avatar.cursor-mode-always::before {
+  content: "●";
+  background: #16a34a;
+}
+
 /* Gehoverter Avatar hebt sich aus dem Stapel hervor */
 .presence-avatar:hover {
   z-index: 3;
@@ -978,4 +1015,104 @@ textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---------- Einführung in die Cursor-Modi ---------- */
+
+.cursor-help-backdrop {
+  z-index: 120;
+}
+
+.cursor-help-modal {
+  position: relative;
+  width: 590px;
+}
+
+.cursor-help-modal > h2,
+.cursor-help-modal > p {
+  margin: 0;
+}
+
+.cursor-help-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 28px;
+}
+
+.cursor-help-modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.cursor-help-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 130px;
+  padding: 14px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.cursor-help-mode > span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.cursor-help-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.mode-off .cursor-help-icon {
+  background: #64748b;
+}
+
+.mode-action .cursor-help-icon {
+  background: #d97706;
+}
+
+.mode-always .cursor-help-icon {
+  background: #16a34a;
+}
+
+.cursor-help-note {
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #eef2ff;
+  color: #475569;
+  font-size: 12px;
+}
+
+.cursor-help-actions {
+  align-items: center;
+}
+
+@media (max-width: 620px) {
+  .cursor-help-modes {
+    grid-template-columns: 1fr;
+  }
+
+  .cursor-help-mode {
+    min-height: 0;
+  }
 }

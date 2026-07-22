@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import type { CursorFocus, Lane, Task } from "./types";
+import type { CursorDisplayMode, CursorFocus, Lane, Task } from "./types";
 import {
   DayInfo,
   MONTHS,
@@ -64,8 +64,8 @@ interface Props {
   revealed?: boolean;
   /** Meldet, ob gerade ein Drag/Auswahl läuft (damit Live-Reloads warten) */
   onInteractingChange?: (active: boolean) => void;
-  /** Benutzer, deren Live-Cursor angezeigt werden (Auswahl über die Presence-Leiste) */
-  watchedCursorIds: Set<number>;
+  /** Darstellungsmodus pro Live-Cursor (Auswahl über die Presence-Leiste) */
+  cursorModes: Record<number, CursorDisplayMode>;
   /** Eigener Fokus (geöffnetes Modal) für andere sichtbar machen */
   cursorFocus: CursorFocus | null;
 }
@@ -133,7 +133,7 @@ export function Timeline({
   fullView = false,
   revealed = false,
   onInteractingChange,
-  watchedCursorIds,
+  cursorModes,
   cursorFocus,
 }: Props) {
   // Alle Pixelrechnungen in der Komponente basieren auf der umschaltbaren Breite
@@ -758,7 +758,7 @@ export function Timeline({
           containerRef={scrollRef}
           innerRef={innerRef}
           laneRowRefs={laneRowRefs}
-          watchedIds={watchedCursorIds}
+          cursorModes={cursorModes}
           focus={cursorFocus}
         />
       </div>

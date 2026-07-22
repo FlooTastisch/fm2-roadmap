@@ -1,6 +1,13 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import type { CursorFocus, CursorPos, Lane, RemoteCursor, Task } from "./types";
+import type {
+  CursorDisplayMode,
+  CursorFocus,
+  CursorPos,
+  Lane,
+  RemoteCursor,
+  Task,
+} from "./types";
 import type { DayInfo } from "./dates";
 import { diffDays } from "./dates";
 import { cursorColor } from "./cursorColor";
@@ -24,7 +31,8 @@ interface Props {
   innerRef: React.RefObject<HTMLDivElement | null>;
   /** Zeilen-Elemente für Fokus-Umrandungen */
   laneRowRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
-  watchedIds: Set<number>;
+  /** Darstellungsmodus pro anderem Benutzer */
+  cursorModes: Record<number, CursorDisplayMode>;
   /** Eigener Fokus (geöffnetes Modal) an andere melden */
   focus: CursorFocus | null;
 }
@@ -93,7 +101,7 @@ export function CursorLayer({
   containerRef,
   innerRef,
   laneRowRefs,
-  watchedIds,
+  cursorModes,
   focus,
 }: Props) {
   const [remote, setRemote] = useState<RemoteCursor[]>([]);
@@ -158,15 +166,16 @@ export function CursorLayer({
     };
   }, []);
 
-  const visible = remote.filter((c) => watchedIds.has(c.id));
+  const visible = remote.filter((c) => (cursorModes[c.id] ?? "off") !== "off");
   if (visible.length === 0) return null;
 
   return (
     <div className="cursor-layer">
       {visible.map((c) => {
+        const mode = cursorModes[c.id] ?? "off";
         const color = cursorColor(c.id);
         const dayIdx = diffDays(rangeStart, c.d);
-        const showCursor = dayIdx >= 0 && dayIdx < days.length;
+        const showCursor = mode === "always" && dayIdx >= 0 && dayIdx < days.length;
         const x = labelW + (dayIdx + c.df) * dayWidth;
         const rect = c.focus
           ? focusRect(c.focus, tasks, lanes, days, rangeStart, labelW, dayWidth, laneRowRefs.current)

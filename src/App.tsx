@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { CursorFocus, Lane, OnlineUser, Task, User } from "./types";
+import type { CursorDisplayMode, CursorFocus, Lane, OnlineUser, Task, User } from "./types";
 import { canSeeAll, canWrite, roleLabel } from "./types";
 import { Presence } from "./Presence";
+import { CursorHelpModal } from "./CursorHelpModal";
 import { Timeline } from "./Timeline";
 import { TaskModal } from "./TaskModal";
 import { LaneModal } from "./LaneModal";
@@ -77,30 +78,21 @@ export default function App() {
     active: false,
     until: null,
   });
-  const [sharingIds, setSharingIds] = useState<Set<number>>(() => new Set());
   const cursorShareActiveRef = useRef(false);
+  const [showCursorHelp, setShowCursorHelp] = useState(
+    () => localStorage.getItem("roadmap:cursorHelpHidden") !== "1"
+  );
 
-  // Live-Cursor: Wessen Zeiger wird angezeigt? Standard: wer seinen Cursor
-  // gerade freigibt (Opt-in). Über Klick auf einen Presence-Avatar lässt sich
-  // das pro Benutzer umschalten; die Auswahl überlebt Reloads (localStorage).
-  const [cursorOverrides, setCursorOverrides] = useState<Record<number, boolean>>(() => {
+  // Anzeige-Modus je Benutzer. Standard ist „aus“; Klick auf einen Avatar
+  // wechselt aus → nur Aktionen → immer sichtbar → aus.
+  const [cursorModes, setCursorModes] = useState<Record<number, CursorDisplayMode>>(() => {
     try {
-      return JSON.parse(localStorage.getItem("roadmap:cursorWatch") ?? "{}");
+      const saved = JSON.parse(localStorage.getItem("roadmap:cursorModes") ?? "{}");
+      return saved && typeof saved === "object" ? saved : {};
     } catch {
       return {};
     }
   });
-
-  // Effektive Auswahl: explizite Umschaltung gewinnt, sonst gilt der
-  // Standard „Cursor von Freigebern sichtbar". Der eigene Cursor wird nie angezeigt.
-  const watchedCursorIds = useMemo(() => {
-    const set = new Set<number>();
-    for (const u of online) {
-      if (user && u.id === user.id) continue;
-      if (cursorOverrides[u.id] ?? sharingIds.has(u.id)) set.add(u.id);
-    }
-    return set;
-  }, [online, cursorOverrides, sharingIds, user]);
 
   // Solange ein Aufgaben-Modal offen ist, an andere melden, was gerade bearbeitet wird
   const cursorFocus = useMemo((): CursorFocus | null => {
@@ -118,16 +110,16 @@ export default function App() {
     return null;
   }, [modal]);
 
-  const toggleCursorWatch = useCallback(
-    (id: number) => {
-      setCursorOverrides((prev) => {
-        const next = { ...prev, [id]: !watchedCursorIds.has(id) };
-        localStorage.setItem("roadmap:cursorWatch", JSON.stringify(next));
-        return next;
-      });
-    },
-    [watchedCursorIds]
-  );
+  const cycleCursorMode = useCallback((id: number) => {
+    setCursorModes((prev) => {
+      const current = prev[id] ?? "off";
+      const mode: CursorDisplayMode =
+        current === "off" ? "action" : current === "action" ? "always" : "off";
+      const next = { ...prev, [id]: mode };
+      localStorage.setItem("roadmap:cursorModes", JSON.stringify(next));
+      return next;
+    });
+  }, []);
   const revealActiveRef = useRef(false);
   const versionRef = useRef(0);
   const staleRef = useRef(false);
@@ -237,7 +229,6 @@ export default function App() {
         setOnline(s.online ?? []);
         setCursorShare(s.cursorShare ?? { active: false, until: null });
         cursorShareActiveRef.current = !!s.cursorShare?.active;
-        setSharingIds(new Set(s.sharingIds ?? []));
 
         // Rollenänderung durch den Admin sofort übernehmen (ohne Neu-Login).
         // Bei unveränderten Daten bleibt das State-Objekt identisch (kein Re-Render).
@@ -271,7 +262,6 @@ export default function App() {
       stopped = true;
       window.clearInterval(id);
       setOnline([]);
-      setSharingIds(new Set());
       setCursorShare({ active: false, until: null });
       cursorShareActiveRef.current = false;
     };
@@ -533,8 +523,8 @@ export default function App() {
           <Presence
             online={online}
             selfId={user.id}
-            watchedIds={watchedCursorIds}
-            onToggleCursor={toggleCursorWatch}
+            cursorModes={cursorModes}
+            onCycleCursorMode={cycleCursorMode}
           />
         </div>
         <div className="topbar-actions">
@@ -645,7 +635,7 @@ export default function App() {
         isAdmin={isAdmin}
         fullView={fullView}
         revealed={reveal.active}
-        watchedCursorIds={watchedCursorIds}
+        cursorModes={cursorModes}
         cursorFocus={cursorFocus}
         onInteractingChange={handleInteractingChange}
         onTaskClick={(task) => setModal({ type: "task-edit", task })}
@@ -778,6 +768,16 @@ export default function App() {
 
       {modal.type === "users" && isAdmin && (
         <UsersModal currentUserId={user.id} onClose={() => setModal({ type: "none" })} />
+      )}
+
+      {showCursorHelp && (
+        <CursorHelpModal
+          onClose={() => setShowCursorHelp(false)}
+          onDontShowAgain={() => {
+            localStorage.setItem("roadmap:cursorHelpHidden", "1");
+            setShowCursorHelp(false);
+          }}
+        />
       )}
     </div>
   );
