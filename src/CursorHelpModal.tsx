@@ -49,19 +49,9 @@ export function CursorHelpModal({ onClose, onDontShowAgain }: Props) {
           </div>
         </div>
 
-        <p className="cursor-help-note">
-          Cursor von Mitarbeitern werden automatisch übertragen. Nur Administratoren
-          können die Übertragung ihres eigenen Cursors über „Cursor teilen“ für maximal
-          60 Minuten aktivieren und jederzeit wieder beenden.
-        </p>
-
         <div className="modal-actions cursor-help-actions">
           <button type="button" className="link-button" onClick={onDontShowAgain}>
             Nicht mehr anzeigen
-          </button>
-          <span className="spacer" />
-          <button type="button" className="primary" onClick={onClose}>
-            Verstanden
           </button>
         </div>
       </div>

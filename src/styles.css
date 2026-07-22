@@ -1095,14 +1095,6 @@ textarea {
   background: #16a34a;
 }
 
-.cursor-help-note {
-  padding: 8px 10px;
-  border-radius: 7px;
-  background: #eef2ff;
-  color: #475569;
-  font-size: 12px;
-}
-
 .cursor-help-actions {
   align-items: center;
 }
