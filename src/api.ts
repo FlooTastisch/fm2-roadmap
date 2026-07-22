@@ -79,8 +79,6 @@ export const api = {
       me: User | null;
       /** Eigene Cursor-Freigabe (Opt-in, max. 60 Minuten) */
       cursorShare: { active: boolean; until: number | null };
-      /** Benutzer-IDs, die ihren Cursor gerade teilen */
-      sharingIds: number[];
     }>("/api/state"),
 
   /** Eigene Cursor-Position melden (null = Zeiger nicht über dem Raster)

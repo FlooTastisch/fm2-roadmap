@@ -430,9 +430,9 @@ function onlineUsers() {
 // basiert – nur so stimmen sie bei unterschiedlichen Scroll-Positionen und
 // Fenstergrößen. Kein Persistieren nötig: reiner Live-Zustand im Speicher.
 //
-// Cursor-Sharing ist Opt-in (Standard: aus). Wer seinen Cursor teilt, erscheint
-// max. CURSOR_SHARE_MAX_MS für andere – danach wird die Freigabe serverseitig
-// wieder deaktiviert.
+// Nur Administratoren dürfen ihre Übertragung deaktivieren. Für Admins ist
+// Cursor-Sharing Opt-in (Standard: aus) und endet nach max. 60 Minuten.
+// Alle anderen Rollen übertragen ihren Cursor immer.
 const CURSOR_TTL_MS = 5 * 1000;
 const CURSOR_SHARE_MAX_MS = 60 * 60 * 1000;
 // userId -> shareUntil (ms seit Epoch)
@@ -440,7 +440,8 @@ const cursorShareUntil = new Map();
 // userId -> { username, role, pos, focus, ts }
 const cursors = new Map();
 
-function cursorShareActive(userId) {
+function cursorShareActive(userId, role) {
+  if (role !== "admin") return true;
   const until = cursorShareUntil.get(userId) ?? 0;
   if (until <= Date.now()) {
     if (until) {
@@ -452,17 +453,10 @@ function cursorShareActive(userId) {
   return true;
 }
 
-function cursorShareStatus(userId) {
-  const active = cursorShareActive(userId);
+function cursorShareStatus(userId, role) {
+  if (role !== "admin") return { active: true, until: null };
+  const active = cursorShareActive(userId, role);
   return { active, until: active ? cursorShareUntil.get(userId) : null };
-}
-
-function sharingUserIds() {
-  const ids = [];
-  for (const userId of cursorShareUntil.keys()) {
-    if (cursorShareActive(userId)) ids.push(userId);
-  }
-  return ids;
 }
 
 function normalizeCursorPos(raw) {
@@ -507,7 +501,7 @@ function normalizeCursorFocus(raw) {
 app.post("/api/cursors", (req, res) => {
   const session = getSession(req);
   const now = Date.now();
-  if (cursorShareActive(session.userId)) {
+  if (cursorShareActive(session.userId, session.role)) {
     const pos = normalizeCursorPos(req.body?.pos);
     const focus = normalizeCursorFocus(req.body?.focus);
     const prev = cursors.get(session.userId);
@@ -534,7 +528,7 @@ app.post("/api/cursors", (req, res) => {
     }
     if (userId === session.userId) continue;
     // Nur Cursor von Benutzern mit aktiver Freigabe weitergeben
-    if (!cursorShareActive(userId)) continue;
+    if (!cursorShareActive(userId, entry.role)) continue;
     list.push({
       id: userId,
       username: entry.username,
@@ -546,8 +540,8 @@ app.post("/api/cursors", (req, res) => {
   res.json({ cursors: list });
 });
 
-// Cursor-Sharing ein-/ausschalten (Opt-in, max. 60 Minuten).
-app.post("/api/cursor-share", (req, res) => {
+// Nur Admins dürfen das eigene Cursor-Sharing ein-/ausschalten.
+app.post("/api/cursor-share", requireAdmin, (req, res) => {
   const session = getSession(req);
   if (req.body?.active) {
     cursorShareUntil.set(session.userId, Date.now() + CURSOR_SHARE_MAX_MS);
@@ -555,7 +549,7 @@ app.post("/api/cursor-share", (req, res) => {
     cursorShareUntil.delete(session.userId);
     cursors.delete(session.userId);
   }
-  res.json(cursorShareStatus(session.userId));
+  res.json(cursorShareStatus(session.userId, session.role));
 });
 
 // Leichtgewichtiger Sammel-Endpunkt fürs Live-Polling: Daten-Version (für
@@ -573,8 +567,9 @@ app.get("/api/state", (req, res) => {
     me: session
       ? { id: session.userId, username: session.username, role: session.role }
       : null,
-    cursorShare: session ? cursorShareStatus(session.userId) : { active: false, until: null },
-    sharingIds: sharingUserIds(),
+    cursorShare: session
+      ? cursorShareStatus(session.userId, session.role)
+      : { active: false, until: null },
   });
 });
 

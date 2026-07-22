@@ -567,22 +567,24 @@ export default function App() {
                 : "Blur aufheben"}
             </button>
           )}
-          <button
-            onClick={toggleCursorShare}
-            className={cursorShare.active ? "cursor-share-on" : ""}
-            title={
-              cursorShare.active
-                ? "Andere sehen gerade deinen Mauszeiger – klicken zum Beenden (endet automatisch nach 60 Minuten)"
-                : "Deinen Cursor für andere sichtbar machen (endet automatisch nach 60 Minuten)"
-            }
-          >
-            {cursorShare.active
-              ? `Cursor aus (noch ${Math.max(
-                  1,
-                  Math.ceil(((cursorShare.until ?? 0) - Date.now()) / 60000)
-                )} min)`
-              : "Cursor teilen"}
-          </button>
+          {isAdmin && (
+            <button
+              onClick={toggleCursorShare}
+              className={cursorShare.active ? "cursor-share-on" : ""}
+              title={
+                cursorShare.active
+                  ? "Andere sehen gerade deinen Mauszeiger – klicken zum Beenden (endet automatisch nach 60 Minuten)"
+                  : "Deinen Cursor für andere sichtbar machen (endet automatisch nach 60 Minuten)"
+              }
+            >
+              {cursorShare.active
+                ? `Cursor aus (noch ${Math.max(
+                    1,
+                    Math.ceil(((cursorShare.until ?? 0) - Date.now()) / 60000)
+                  )} min)`
+                : "Cursor teilen"}
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={handleUndo}

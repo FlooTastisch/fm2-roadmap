@@ -50,8 +50,9 @@ export function CursorHelpModal({ onClose, onDontShowAgain }: Props) {
         </div>
 
         <p className="cursor-help-note">
-          Jeder Nutzer entscheidet selbst über „Cursor teilen“, ob sein eigener Cursor
-          bis zu 60 Minuten übertragen wird.
+          Cursor von Mitarbeitern werden automatisch übertragen. Nur Administratoren
+          können die Übertragung ihres eigenen Cursors über „Cursor teilen“ für maximal
+          60 Minuten aktivieren und jederzeit wieder beenden.
         </p>
 
         <div className="modal-actions cursor-help-actions">
